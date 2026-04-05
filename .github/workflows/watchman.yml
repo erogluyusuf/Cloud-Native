@@ -2,12 +2,15 @@ name: Account Watchman
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # Her 5 dakikada bir uyan ve tüm hesabı tara
-  workflow_dispatch:      # Manuel tetikleme butonu
+    - cron: '*/5 * * * *' # Her 5 dakikada bir çalışır
+  workflow_dispatch:      # GitHub üzerinden manuel başlatabilmeni sağlar
 
 jobs:
   watch:
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - name: 🦀 Rust Kur

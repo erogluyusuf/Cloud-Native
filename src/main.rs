@@ -16,14 +16,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("{} {}", "[*] Watchman Aktif:".cyan().bold(), username.yellow());
 
-    // 1. Kullanıcının tüm repolarını "son güncellenme" sırasına göre çek
+    // Senin tüm repolarını çek
     let repos = octocrab.current().list_repos_for_authenticated_user()
         .sort(octocrab::params::repos::Sort::Pushed)
         .per_page(50)
         .send()
         .await?;
 
-    // 2. İmza kütüphanesi
     let signatures = vec![
         ("AWS Key", Regex::new(r"AKIA[0-9A-Z]{16}")?),
         ("Discord Token", Regex::new(r"[a-zA-Z0-9_-]{24}\.[a-zA-Z0-9_-]{6}\.[a-zA-Z0-9_-]{27}")?),
@@ -31,17 +30,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     let now = Utc::now();
-    let threshold = Duration::minutes(10); // Son 10 dakikada güncellenenleri tara
+    let threshold = Duration::minutes(10); // Son 10 dakika içindeki aktiviteye bak
 
     for repo in repos {
         let pushed_at = repo.pushed_at.unwrap_or(repo.created_at.unwrap());
         if now.signed_duration_since(pushed_at) > threshold {
-            continue; // Eski repoları tara geç
+            continue; 
         }
 
         println!("{} {}/{}", "[!] Aktivite Tespit Edildi:".green(), username, repo.name);
 
-        // 3. Reponun içeriğini indir
         let tarball_url = format!("https://api.github.com/repos/{}/{}/tarball", username, repo.name);
         let client = reqwest::Client::new();
         let res = client.get(tarball_url).bearer_auth(&token).header("User-Agent", "Vault-Hound").send().await?;
@@ -52,10 +50,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut archive = Archive::new(GzDecoder::new(Cursor::new(bytes)));
         let mut findings = String::new();
 
-        // 4. Dosya tarama
         if let Ok(entries) = archive.entries() {
             for entry in entries.filter_map(|e| e.ok()) {
-                let path = entry.path()?.to_string_lossy().to_string();
+                let path = entry.path().unwrap_or_default().to_string_lossy().to_string();
                 if path.contains("/target/") || path.contains("/.git/") { continue; }
 
                 let reader = BufReader::new(entry);
@@ -73,7 +70,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        // 5. Sızıntı varsa O REPOYA Issue aç
         if !findings.is_empty() {
             println!("{} Issue açılıyor...", "[*]".yellow());
             octocrab.issues(&username, &repo.name)
