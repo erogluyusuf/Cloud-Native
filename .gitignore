@@ -1,10 +1,1 @@
-# Rust derleme dosyaları
-target/
-Cargo.lock
-
-# Veritabanı ve Çevre Değişkenleri
-vault_hound.db
-*.db
-.env
-*.pem
-*.key
+/target

@@ -1,75 +1,88 @@
-mod cli;
-mod rules;
-mod report;
-mod scanner;
-mod docker;
-mod reporter;
-mod database;
-mod hunter;
-mod validator;
-
-use std::process;
-use dotenv::dotenv;
+use octocrab::Octocrab;
+use regex::Regex;
+use std::env;
+use std::io::{BufRead, BufReader, Cursor};
+use tar::Archive;
+use flate2::read::GzDecoder;
+use chrono::{Utc, Duration};
 use colored::*;
 
 #[tokio::main]
-async fn main() {
-    // RUSTLS KRİZİNİ KÖKÜNDEN ÇÖZEN SATIR: Açıkça 'ring' motorunu seçiyoruz
-    let _ = rustls::crypto::ring::default_provider().install_default();
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let token = env::var("GITHUB_TOKEN").expect("GITHUB_TOKEN missing");
+    let octocrab = Octocrab::builder().personal_token(token.clone()).build()?;
+    let user = octocrab.current().user().await?;
+    let username = user.login;
 
-    dotenv().ok();
-    let args = cli::parse_args();
-    let mut all_findings = Vec::new();
+    println!("{} {}", "[*] Watchman Aktif:".cyan().bold(), username.yellow());
 
-    println!("{}", "[*] Vault Hound Started...".cyan().bold());
+    // 1. Kullanıcının tüm repolarını "son güncellenme" sırasına göre çek
+    let repos = octocrab.current().list_repos_for_authenticated_user()
+        .sort(octocrab::params::repos::Sort::Pushed)
+        .per_page(50)
+        .send()
+        .await?;
 
-    let db_conn = database::init_db().expect("[ERROR] SQLite veritabanı başlatılamadı!");
+    // 2. İmza kütüphanesi
+    let signatures = vec![
+        ("AWS Key", Regex::new(r"AKIA[0-9A-Z]{16}")?),
+        ("Discord Token", Regex::new(r"[a-zA-Z0-9_-]{24}\.[a-zA-Z0-9_-]{6}\.[a-zA-Z0-9_-]{27}")?),
+        ("GitHub PAT", Regex::new(r"ghp_[a-zA-Z0-9]{36}")?),
+    ];
 
-    // Avlanma (Hunter) Modu Aktif mi?
-    if let Some(query) = args.hunt {
-        if let Err(e) = hunter::start_hunt(&query, &db_conn).await {
-            eprintln!("[ERROR] Avlanma sırasında hata: {}", e);
+    let now = Utc::now();
+    let threshold = Duration::minutes(10); // Son 10 dakikada güncellenenleri tara
+
+    for repo in repos {
+        let pushed_at = repo.pushed_at.unwrap_or(repo.created_at.unwrap());
+        if now.signed_duration_since(pushed_at) > threshold {
+            continue; // Eski repoları tara geç
         }
-        return;
-    }
 
-    if let (Some(owner), Some(repo)) = (args.report_owner, args.report_repo) {
-        match database::is_repo_scanned(&db_conn, &owner, &repo) {
-            Ok(true) => {
-                println!("{}", format!("[!] ATLANDI: {}/{} daha önce raporlanmış.", owner, repo).yellow());
-                return;
-            }
-            Ok(false) => println!("[*] Yeni repo tespit edildi, raporlama başlatılıyor..."),
-            Err(e) => eprintln!("[ERROR] DB hatası: {}", e),
-        }
+        println!("{} {}/{}", "[!] Aktivite Tespit Edildi:".green(), username, repo.name);
 
-        let title = "🚨 [Vault Hound] Security Alert: Hardcoded Secrets Detected!";
-        let body = "### Vault Hound Security Scan\n\nMerhaba! Sistemimiz bu repoda hassas bir veri (API Key vb.) tespit etti. Lütfen credential rotasyonunu sağlayın.";
+        // 3. Reponun içeriğini indir
+        let tarball_url = format!("https://api.github.com/repos/{}/{}/tarball", username, repo.name);
+        let client = reqwest::Client::new();
+        let res = client.get(tarball_url).bearer_auth(&token).header("User-Agent", "Vault-Hound").send().await?;
         
-        if let Err(e) = reporter::open_issue(&owner, &repo, title, body).await {
-            eprintln!("{}", format!("[ERROR] Issue açılamadı: {}", e).red());
-        } else {
-            let _ = database::mark_repo_scanned(&db_conn, &owner, &repo);
+        if !res.status().is_success() { continue; }
+        
+        let bytes = res.bytes().await?;
+        let mut archive = Archive::new(GzDecoder::new(Cursor::new(bytes)));
+        let mut findings = String::new();
+
+        // 4. Dosya tarama
+        if let Ok(entries) = archive.entries() {
+            for entry in entries.filter_map(|e| e.ok()) {
+                let path = entry.path()?.to_string_lossy().to_string();
+                if path.contains("/target/") || path.contains("/.git/") { continue; }
+
+                let reader = BufReader::new(entry);
+                for (i, line) in reader.lines().enumerate() {
+                    if let Ok(content) = line {
+                        for (name, re) in &signatures {
+                            if re.is_match(&content) {
+                                let hit = format!("🚨 {} sızıntısı: {} (Satır: {})\n", name, path, i + 1);
+                                println!("    {}", hit.red().bold());
+                                findings.push_str(&hit);
+                            }
+                        }
+                    }
+                }
+            }
         }
-        return; 
+
+        // 5. Sızıntı varsa O REPOYA Issue aç
+        if !findings.is_empty() {
+            println!("{} Issue açılıyor...", "[*]".yellow());
+            octocrab.issues(&username, &repo.name)
+                .create("🚨 KRİTİK GÜVENLİK UYARISI")
+                .body(format!("Vault Hound Watchman bu repoda sızıntı buldu:\n\n```\n{}\n```\nLütfen acilen bu veriyi silin ve anahtarı iptal edin!", findings))
+                .send()
+                .await?;
+        }
     }
 
-    if let Some(image_path) = args.image {
-        let mut docker_findings = docker::scan_tar_image(&image_path);
-        all_findings.append(&mut docker_findings);
-    } else {
-        println!("[*] Target Path: {}", args.path);
-        let mut dir_findings = scanner::scan_directory(&args.path);
-        all_findings.append(&mut dir_findings);
-    }
-
-    if args.format.to_lowercase() == "json" {
-        report::print_json_report(&all_findings);
-    } else {
-        report::print_text_report(&all_findings);
-    }
-
-    if args.strict && !all_findings.is_empty() {
-        process::exit(1);
-    }
+    Ok(())
 }
