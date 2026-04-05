@@ -1,0 +1,63 @@
+name: Vault Hound Autonomous Defender
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  vault-hound-scan:
+    name: Secret & Vulnerability Scan
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - name: 📥 Kodu Klonla
+        uses: actions/checkout@v4
+
+      - name: 🦀 Rust Ortamını Hazırla
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+
+      - name: 🔨 Vault Hound'u Derle (Release Modu)
+        run: cargo build --release
+
+      - name: 🔎 Kodu Tara (Vault Hound)
+        id: scan
+        run: |
+          ./target/release/vault_hound --path . > scan_report.txt 2>&1 || true
+          cat scan_report.txt
+          
+          if grep -q -e "\[BULDUM\]" -e "\[ŞÜPHELİ\]" scan_report.txt; then
+            echo "LEAK_DETECTED=true" >> $GITHUB_ENV
+          else
+            echo "LEAK_DETECTED=false" >> $GITHUB_ENV
+          fi
+
+      - name: 🚨 Sızıntı Varsa Otomatik Issue Aç
+        if: env.LEAK_DETECTED == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPORT=$(cat scan_report.txt)
+          
+          gh issue create \
+            --title "🚨 [Vault Hound] Kritik Güvenlik İhlali Tespit Edildi!" \
+            --body "Otonom **Vault Hound** tarayıcısı, yapılan son Push işleminde bir şifre veya API Anahtarı sızıntısı tespit etti. Lütfen aşağıdaki raporu acilen inceleyin ve sızan anahtarı iptal edin (revoke).
+            
+            <details>
+            <summary><b>🔍 Tarama Raporunu Görmek İçin Tıklayın</b></summary>
+
+            \`\`\`text
+            $REPORT
+            \`\`\`
+            </details>
+            
+            *Bu bildirim, Vault Hound Autonomous Defender tarafından otomatik olarak oluşturulmuştur.*"
+            
+          exit 1
