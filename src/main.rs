@@ -16,8 +16,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("{} {}", "[*] Watchman Aktif:".cyan().bold(), username.yellow());
 
+    // ÇÖZÜM BURADA: Enum yerine doğrudan "pushed" yazısı kullanıyoruz
     let repos = octocrab.current().list_repos_for_authenticated_user()
-        .sort(octocrab::params::repos::Sort::Pushed)
+        .sort("pushed")
         .per_page(50)
         .send()
         .await?;
@@ -29,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     let now = Utc::now();
-    let threshold = Duration::minutes(15); // Test için süreyi 15 dakikaya çıkardık
+    let threshold = Duration::minutes(15); 
 
     for repo in repos {
         let pushed_at = repo.pushed_at.unwrap_or(repo.created_at.unwrap());
@@ -54,7 +55,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let path = entry.path().unwrap_or_default().to_string_lossy().to_string();
                 if path.contains("/target/") || path.contains("/.git/") { continue; }
 
-                // YENİ KURAL: Dosya adı .env ise içeriğine bakmadan anında yakala!
                 if path.ends_with(".env") || path.contains("/.env") {
                     let hit = format!("🚨 KRİTİK DOSYA İFŞASI: '.env' dosyası public repoya pushlandı! -> {}\n", path);
                     println!("    {}", hit.red().bold());
