@@ -39,7 +39,7 @@ The system needs an authorization key to monitor your account and open Issues on
 
 ### Step 2: Add the Token to GitHub Actions Secrets
 Now, we need to give this key to Vault Hound's Actions pipeline.
-1. Go to the repository where you hosted Vault Hound (e.g., `Cloud-Native`).
+1. Go to the repository where you hosted Vault Hound (e.g., `Vault-Hound`).
 2. Click on the **Settings** tab at the top.
 3. From the left sidebar, navigate to **Secrets and variables** > **Actions**.
 4. Click the green **New repository secret** button.
