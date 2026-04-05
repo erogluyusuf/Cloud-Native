@@ -16,7 +16,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("{} {}", "[*] Watchman Aktif:".cyan().bold(), username.yellow());
 
-    // Senin tüm repolarını çek
     let repos = octocrab.current().list_repos_for_authenticated_user()
         .sort(octocrab::params::repos::Sort::Pushed)
         .per_page(50)
@@ -30,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     let now = Utc::now();
-    let threshold = Duration::minutes(10); // Son 10 dakika içindeki aktiviteye bak
+    let threshold = Duration::minutes(15); // Test için süreyi 15 dakikaya çıkardık
 
     for repo in repos {
         let pushed_at = repo.pushed_at.unwrap_or(repo.created_at.unwrap());
@@ -55,6 +54,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let path = entry.path().unwrap_or_default().to_string_lossy().to_string();
                 if path.contains("/target/") || path.contains("/.git/") { continue; }
 
+                // YENİ KURAL: Dosya adı .env ise içeriğine bakmadan anında yakala!
+                if path.ends_with(".env") || path.contains("/.env") {
+                    let hit = format!("🚨 KRİTİK DOSYA İFŞASI: '.env' dosyası public repoya pushlandı! -> {}\n", path);
+                    println!("    {}", hit.red().bold());
+                    findings.push_str(&hit);
+                }
+
                 let reader = BufReader::new(entry);
                 for (i, line) in reader.lines().enumerate() {
                     if let Ok(content) = line {
@@ -74,7 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("{} Issue açılıyor...", "[*]".yellow());
             octocrab.issues(&username, &repo.name)
                 .create("🚨 KRİTİK GÜVENLİK UYARISI")
-                .body(format!("Vault Hound Watchman bu repoda sızıntı buldu:\n\n```\n{}\n```\nLütfen acilen bu veriyi silin ve anahtarı iptal edin!", findings))
+                .body(format!("**Vault Hound Watchman** bu repoda ciddi bir güvenlik açığı buldu:\n\n```\n{}\n```\nLütfen acilen bu dosyayı silin veya sızan anahtarı iptal edin!", findings))
                 .send()
                 .await?;
         }
