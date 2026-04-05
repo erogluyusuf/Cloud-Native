@@ -46,13 +46,14 @@ pub async fn start_hunt(query: &str, db_conn: &Connection) -> Result<(), Box<dyn
                     let path_str = entry.path().unwrap_or_default().to_string_lossy().to_string();
                     let p_lower = path_str.to_lowercase();
                     
-                    // KARA LİSTE: Sadece işlemciyi yoracak olan statik medyaları ve derlenmiş dosyaları atlıyoruz.
-                    // HTML, PHP, JS, TS, PY, ENV gibi kod barındırma ihtimali olan HER ŞEY taranacak.
-                    if p_lower.ends_with(".png") || p_lower.ends_with(".jpg") || p_lower.ends_with(".jpeg") ||
+                    // KARA LİSTE: Kesinlikle atlanacak dizinler ve dosyalar
+                    if p_lower.contains("/target/") || p_lower.contains(".git/") || 
+                       p_lower.ends_with(".png") || p_lower.ends_with(".jpg") || p_lower.ends_with(".jpeg") ||
                        p_lower.ends_with(".svg") || p_lower.ends_with(".gif") || p_lower.ends_with(".mp4") ||
                        p_lower.ends_with(".pdf") || p_lower.ends_with(".zip") || p_lower.ends_with(".tar.gz") ||
                        p_lower.ends_with(".lock") || p_lower.ends_with(".exe") || p_lower.ends_with(".dll") ||
-                       p_lower.contains("node_modules") {
+                       p_lower.ends_with(".o") || p_lower.ends_with(".bin") || p_lower.ends_with(".rlib") || 
+                       p_lower.ends_with(".rmeta") || p_lower.contains("node_modules") {
                         continue;
                     }
 

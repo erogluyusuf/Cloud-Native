@@ -15,19 +15,19 @@ jobs:
       contents: read
 
     steps:
-      - name: 📥 Kodu Klonla
+      - name:  Kodu Klonla
         uses: actions/checkout@v4
 
-      - name: 🦀 Rust Ortamını Hazırla
+      - name:  Rust Ortamını Hazırla
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
 
-      - name: 🔨 Vault Hound'u Derle (Release Modu)
+      - name:  Vault Hound'u Derle (Release Modu)
         run: cargo build --release
 
-      - name: 🔎 Kodu Tara (Vault Hound)
+      - name:  Kodu Tara (Vault Hound)
         id: scan
         run: |
           ./target/release/vault_hound --path . > scan_report.txt 2>&1 || true
@@ -39,7 +39,7 @@ jobs:
             echo "LEAK_DETECTED=false" >> $GITHUB_ENV
           fi
 
-      - name: 🚨 Sızıntı Varsa Otomatik Issue Aç
+      - name:  Sızıntı Varsa Otomatik Issue Aç
         if: env.LEAK_DETECTED == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -47,11 +47,11 @@ jobs:
           REPORT=$(cat scan_report.txt)
           
           gh issue create \
-            --title "🚨 [Vault Hound] Kritik Güvenlik İhlali Tespit Edildi!" \
+            --title " [Vault Hound] Kritik Güvenlik İhlali Tespit Edildi!" \
             --body "Otonom **Vault Hound** tarayıcısı, yapılan son Push işleminde bir şifre veya API Anahtarı sızıntısı tespit etti. Lütfen aşağıdaki raporu acilen inceleyin ve sızan anahtarı iptal edin (revoke).
             
             <details>
-            <summary><b>🔍 Tarama Raporunu Görmek İçin Tıklayın</b></summary>
+            <summary><b> Tarama Raporunu Görmek İçin Tıklayın</b></summary>
 
             \`\`\`text
             $REPORT
