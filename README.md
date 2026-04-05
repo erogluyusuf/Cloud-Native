@@ -1,39 +1,62 @@
-#  Vault Hound 
+#  Vault Hound: Autonomous Account Watchman
 
-**Cloud-Native Secret & Hardcoded Credential Scanner**
+**Vault Hound** is an autonomous DevSecOps and Secret Scanner system that monitors personal or corporate GitHub accounts in near real-time. Developed with a focus on high performance using Rust, it is built upon modern "Shift-Left" security principles.
 
-Vault Hound is a high-performance DevSecOps security engine built from scratch in Rust. It is designed to detect sensitive data (API Keys, Database Passwords, Private Keys, etc.) accidentally left behind in software development processes (CI/CD pipelines) and public GitHub repositories.
+##  Architecture: What is the "Watchman" Model?
 
-##  Key Architectural Features
+Traditional security tools require integration into the CI/CD pipeline of every single project. The **Account Watchman Model** operates on a "Centralized SOC (Security Operations Center)" philosophy. 
 
-* **In-Memory Layer Scanning:** Eliminates Disk I/O bottlenecks by scanning Docker images (`.tar`) or GitHub repositories entirely in-memory as a stream, without extracting them to disk. Highly SSD friendly.
-* **Shannon Entropy Analysis:** Goes beyond known Regex patterns and uses mathematical entropy calculations to catch randomly generated, complex secrets hidden within the code.
-* **Smart Discovery (Hunter Mode):** Automatically discovers and scans new repositories based on specific criteria using the GitHub Code Search API.
-* **Autonomous Memory (State Persistence):** Saves scanned repositories to a built-in **SQLite** database. It protects system resources and prevents exceeding GitHub API Rate Limits by ensuring the same repository is never scanned twice.
-* **Noise Filtering (Allowlist):** Focuses exclusively on source code (`.py`, `.js`, `.json`, `.env`, etc.); smartly bypasses static files like `.lock`, `.svg`, `.md` that typically generate false positives.
+Hosted in a single central repository via **GitHub Actions**, the Watchman agent uses the GitHub API to monitor **all repositories** associated with your account. 
 
-##  Installation & Usage
+When a code update (Push) is detected anywhere in your account:
+1. It runs on an isolated GitHub Actions virtual machine.
+2. It fetches the updated repository's source code directly into the runner's **RAM (Memory)** without writing to disk.
+3. It performs rapid scanning using a dynamic library of 40+ enterprise-grade signatures (`rules.json`).
+4. If a leak is detected, it autonomously opens a "Critical Security Alert (Issue)" **directly in the target repository**.
 
-### Running with Docker (Recommended)
-You can run the scanner anywhere with a single command, without needing to install Rust on your system.
+##  Key Features
 
-```bash
-docker build -t vault_hound .
-docker run -v $(pwd):/scan vault_hound --path /scan
-docker run --env-file .env vault_hound --hunt "language:python size:<1000"
+- **Full Autonomy:** Patrols 24/7 via GitHub Actions Cron Jobs. Requires zero human intervention.
+- **Dynamic Rule Engine:** Add new API signatures instantly via `rules.json` without recompiling the Rust binary.
+- **Noise Reduction:** Automatically skips `.git`, `target`, compiled binaries, and media files to prevent False Positives.
+- **Broad Signature Library:** Recognizes 40+ key formats including Cloud Providers (AWS, GCP), AI APIs (OpenAI, Anthropic), payment gateways (Stripe), and communication tools (Slack, Discord, Telegram).
+
+##  Step-by-Step Setup & Integration
+
+To deploy Vault Hound as an autonomous security shield, you need to generate a GitHub Token and grant it to this repository's GitHub Actions.
+
+### Step 1: Create the GitHub Personal Access Token (PAT)
+The system needs an authorization key to monitor your account and open Issues on your behalf.
+1. Go to your GitHub profile and navigate to **Settings** > **Developer settings** > **Personal access tokens (classic)**.
+2. Click **Generate new token (classic)**.
+3. Name it `Vault Hound Watchman`.
+4. Check **only** the **`repo`** scope (Full control of private repositories) and generate the token.
+5. Copy the generated `ghp_...` key. Make sure to save it, as you won't see it again!
+
+### Step 2: Add the Token to GitHub Actions Secrets
+Now, we need to give this key to Vault Hound's Actions pipeline.
+1. Go to the repository where you hosted Vault Hound (e.g., `Cloud-Native`).
+2. Click on the **Settings** tab at the top.
+3. From the left sidebar, navigate to **Secrets and variables** > **Actions**.
+4. Click the green **New repository secret** button.
+5. In the **Name** field, type exactly: `WATCHMAN_TOKEN`
+6. In the **Secret** field, paste the `ghp_...` key you created in Step 1.
+7. Click **Add secret**.
+
+### Step 3: Awaken the System
+Once the code and the secret are in place, the `.github/workflows/watchman.yml` file will automatically trigger. The system will start scanning your account every 5 minutes. You can also trigger it manually using the `Run workflow` button in the GitHub Actions tab.
+
+##  Configuration (Adding Custom Rules)
+If you want to add a new secret scanning rule, simply add a new JSON object to the `rules.json` file in the root directory:
+
+```json
+{
+  "name": "Example Service API Key",
+  "pattern": "service_prefix_[a-zA-Z0-9]{32}"
+}
 ```
-### CI/CD Pipeline Integration (Shift-Left Security)
-Vault Hound is built to break CI/CD pipelines when necessary. When executed with the `--strict` flag on GitHub Actions or GitLab CI, it will return `Exit Code 1` if a leaked secret is detected, actively preventing vulnerable code from reaching the Production environment.
-
-```yaml
-- name: Run Vault Hound Scanner
-  run: ./vault_hound --path . --strict
-```
-##  How it Works
-
-1. **Regex & Pattern Matching:** Catches predefined key formats of well-known service providers (AWS, Google Cloud, Stripe, Slack, etc.).
-2. **Shannon Entropy (Randomness Measurement):** Calculates the entropy of strings longer than 16 characters. Strings with an entropy score higher than 4.5 are flagged as highly suspicious.
-3. **Smart Extension Filter:** Automatically filters out static media and dependency (lock) files from the scanning stream to drastically improve performance and eliminate noise.
+##  Security & Privacy
+This tool is a preventative system designed to run entirely on GitHub's secure infrastructure. Source code fetched during the scan is **held entirely in the memory (RAM) of the ephemeral GitHub Actions runner**. It is never written to a hard drive or transferred to third-party servers. Once the GitHub Action job is completed, the runner and its memory are permanently destroyed.
 
 ---
-*Developed with  Rust & a Cloud-Native Security mindset.*
+*Developed with  Rust for modern DevSecOps standards.*
