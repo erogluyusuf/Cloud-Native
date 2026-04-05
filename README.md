@@ -1,5 +1,7 @@
 #  Vault Hound: Autonomous Account Watchman
 
+![Erogluyusuf Badges Animated Card](https://badges-jet.vercel.app/api/card?username=erogluyusuf&repo=badges&animate=true&bg=0d1117&titleColor=58a6ff&textColor=8b949e&w=500&customBadges=Tech:Vue:42b883:vuedotjs,Build:Vite:646cff:vite,Lang:TS:3178c6:typescript&qr=true)
+
 **Vault Hound** is an autonomous DevSecOps and Secret Scanner system that monitors personal or corporate GitHub accounts in near real-time. Developed with a focus on high performance using Rust, it is built upon modern "Shift-Left" security principles.
 
 ##  Architecture: What is the "Watchman" Model?
