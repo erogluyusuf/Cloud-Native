@@ -1,11 +1,25 @@
 use octocrab::Octocrab;
 use regex::Regex;
 use std::env;
+use std::fs;
 use std::io::{BufRead, BufReader, Cursor};
 use tar::Archive;
 use flate2::read::GzDecoder;
 use chrono::{Utc, Duration};
 use colored::*;
+use serde::Deserialize;
+
+// JSON Dosyası için Yapılar (Structs)
+#[derive(Deserialize)]
+struct RuleConfig {
+    rules: Vec<Rule>,
+}
+
+#[derive(Deserialize)]
+struct Rule {
+    name: String,
+    pattern: String,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -16,18 +30,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("{} {}", "[*] Watchman Aktif:".cyan().bold(), username.yellow());
 
-    // ÇÖZÜM BURADA: Enum yerine doğrudan "pushed" yazısı kullanıyoruz
+    // 1. JSON Kurallarını Oku ve Derle
+    let rules_content = fs::read_to_string("rules.json").expect("[HATA] rules.json dosyası bulunamadı!");
+    let config: RuleConfig = serde_json::from_str(&rules_content).expect("[HATA] rules.json formatı bozuk!");
+    
+    let mut signatures: Vec<(String, Regex)> = Vec::new();
+    for rule in config.rules {
+        if let Ok(re) = Regex::new(&rule.pattern) {
+            signatures.push((rule.name, re));
+        } else {
+            println!("{} Geçersiz Regex Atlandı: {}", "[Uyarı]".yellow(), rule.name);
+        }
+    }
+    
+    println!("{} Toplam {} güvenlik kuralı yüklendi.", "[*]".cyan(), signatures.len());
+
     let repos = octocrab.current().list_repos_for_authenticated_user()
         .sort("pushed")
         .per_page(50)
         .send()
         .await?;
-
-    let signatures = vec![
-        ("AWS Key", Regex::new(r"AKIA[0-9A-Z]{16}")?),
-        ("Discord Token", Regex::new(r"[a-zA-Z0-9_-]{24}\.[a-zA-Z0-9_-]{6}\.[a-zA-Z0-9_-]{27}")?),
-        ("GitHub PAT", Regex::new(r"ghp_[a-zA-Z0-9]{36}")?),
-    ];
 
     let now = Utc::now();
     let threshold = Duration::minutes(15); 
@@ -64,6 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let reader = BufReader::new(entry);
                 for (i, line) in reader.lines().enumerate() {
                     if let Ok(content) = line {
+                        // Dinamik Yüklenen Kuralları Çalıştır
                         for (name, re) in &signatures {
                             if re.is_match(&content) {
                                 let hit = format!("🚨 {} sızıntısı: {} (Satır: {})\n", name, path, i + 1);
