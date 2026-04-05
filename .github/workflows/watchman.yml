@@ -2,15 +2,12 @@ name: Account Watchman
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # Her 5 dakikada bir çalışır
-  workflow_dispatch:      # GitHub üzerinden manuel başlatabilmeni sağlar
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 jobs:
   watch:
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
-      contents: read
     steps:
       - uses: actions/checkout@v4
       - name: 🦀 Rust Kur
@@ -20,5 +17,6 @@ jobs:
           profile: minimal
       - name: 🔨 Watchman'ı Çalıştır
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # BURASI DEĞİŞTİ: Artık senin gerçek PAT'ini kullanıyor
+          GITHUB_TOKEN: ${{ secrets.WATCHMAN_TOKEN }}
         run: cargo run --release
