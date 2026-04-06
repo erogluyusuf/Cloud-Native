@@ -63,4 +63,4 @@ If you want to add a new secret scanning rule, simply add a new JSON object to t
 This tool is a preventative system designed to run entirely on GitHub's secure infrastructure. Source code fetched during the scan is **held entirely in the memory (RAM) of the ephemeral GitHub Actions runner**. It is never written to a hard drive or transferred to third-party servers. Once the GitHub Action job is completed, the runner and its memory are permanently destroyed.
 
 ---
-*Developed with  Rust for modern DevSecOps standards.*
+*Developed with  Rust for modern DevSecOps standards.* 
