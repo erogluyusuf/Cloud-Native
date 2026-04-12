@@ -1,5 +1,5 @@
 ![Vault Hound Logo](logo.png)
-
+ 
 #  Vault Hound: Autonomous Account Watchman
 
 ![Erogluyusuf Badges Animated Card](https://badges-jet.vercel.app/api/card?username=erogluyusuf&repo=badges&animate=true&bg=0d1117&titleColor=58a6ff&textColor=8b949e&w=500&customBadges=Tech:Vue:42b883:vuedotjs,Build:Vite:646cff:vite,Lang:TS:3178c6:typescript&qr=true)
